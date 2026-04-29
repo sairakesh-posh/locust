@@ -4,13 +4,17 @@ import json, random, csv
 # --- File Paths ---
 BATCH1_FILE = "/Users/sairakeshreddy/goshposh/locust/locustfiles/Blocking_Reactive/bucket1.csv"
 BATCH2_FILE = "/Users/sairakeshreddy/goshposh/locust/locustfiles/Blocking_Reactive/bucket2.csv"
+BATCH3_FILE = '/Users/sairakeshreddy/goshposh/locust/locustfiles/Blocking_Reactive/bucket3.csv'
+BATCH4_FILE = '/Users/sairakeshreddy/goshposh/locust/locustfiles/Blocking_Reactive/bucket4.csv'
 
 BATCH1_DATA = []
 BATCH2_DATA = []
+BATCH3_DATA = []
+BATCH4_DATA = []
 
 HEADERS = {
     "Content-type": "application/json",
-    "x-http-authorization": "Bearer eyJraWQiOiJkODBjOTI1OS0zYjM4LTQ0NDktODRiOS1kMTQ0Y2UwZDAyZjUiLCJhbGciOiJFUzI1NksifQ.eyJleHAiOjE3NzY3NTgxMjF9.YVRsNNoqFX57QJtRY25PEyOefs5QZuzPj9VNYCas_1dC3CaG7WY7gQ3goMCK1OhIoTOpb2uH09n04vmKRKaV5w"
+    "x-http-authorization": "Bearer eyJraWQiOiIwZDQ4ZmJmNC04NTAzLTQzMmYtYWUzMC1hOWZhMDQ4NGY3NzUiLCJhbGciOiJFUzI1NiJ9.eyJleHAiOjE3NzczNTQwMTh9.hSugrONc9aNv1xvsjCyfFAM9nazZlRCAHcOYkofO-4Ffc1yQKQul7E7to0Veu9FkhAgZLIyFnx5Yo2J-d69qHw"
 }
 
 # --- Load Data ---
@@ -27,13 +31,16 @@ def load_data(filepath, data_list):
 print("Loading data from buckets...")
 load_data(BATCH1_FILE, BATCH1_DATA)
 load_data(BATCH2_FILE, BATCH2_DATA)
+load_data(BATCH3_FILE, BATCH3_DATA)
+load_data(BATCH4_FILE, BATCH4_DATA)
 print(f"Loaded {len(BATCH1_DATA)} from Bucket 1, {len(BATCH2_DATA)} from Bucket 2.")
+print(f"Loaded {len(BATCH3_DATA)} from Bucket 3, {len(BATCH4_DATA)} from Bucket 4.")
 
 # --- Configuration Patterns ---
 batch_patterns = [
-    (50, 50),  
-    (75, 25),  
-    (100, 0)   
+    (25, 25, 25, 25),   
+    (50, 25, 15, 10),  
+    (100, 0, 0, 0)     
 ]
 
 size_patterns = [
@@ -47,26 +54,32 @@ SELECTED_SIZE_PATTERN = size_patterns[2]
 SELECTED_BATCH_PATTERN = batch_patterns[0]  
 
 # --- Payload Generation ---
-def generate_payload(exact_n, multimodal_n, nofm_n, b1_pct, b2_pct):
+def generate_payload(exact_n, multimodal_n, nofm_n, b1_pct, b2_pct, b3_pct, b4_pct):
     payload_size = exact_n + multimodal_n + nofm_n
-    
-    # Calculate exact counts safely (int cast rounds down, so we subtract for the remainder)
+
+    # Compute counts
     b1_count = int(payload_size * (b1_pct / 100.0))
-    b2_count = payload_size - b1_count 
-    
-    # Sample from each pool independently
+    b2_count = int(payload_size * (b2_pct / 100.0))
+    b3_count = int(payload_size * (b3_pct / 100.0))
+
+    # Assign remainder to last bucket (avoids rounding mismatch)
+    b4_count = payload_size - (b1_count + b2_count + b3_count)
+
+    # Sample safely
     b1_sample = random.sample(BATCH1_DATA, b1_count) if b1_count > 0 else []
     b2_sample = random.sample(BATCH2_DATA, b2_count) if b2_count > 0 else []
-    
-    # Combine and shuffle to distribute the batch logic randomly across retrieval sets
-    combined_pool = b1_sample + b2_sample
+    b3_sample = random.sample(BATCH3_DATA, b3_count) if b3_count > 0 else []
+    b4_sample = random.sample(BATCH4_DATA, b4_count) if b4_count > 0 else []
+
+    # Combine + shuffle
+    combined_pool = b1_sample + b2_sample + b3_sample + b4_sample
     random.shuffle(combined_pool)
-    
-    # Slice the shuffled pool into the required sizes
+
+    # Split into retrieval sets
     exact_posts = combined_pool[0:exact_n]
     multimodal_posts = combined_pool[exact_n:exact_n + multimodal_n]
     nofm_posts = combined_pool[exact_n + multimodal_n:]
-    
+
     return {
         "model_version": {
             "post_score": "2.0.1",
@@ -92,8 +105,14 @@ def generate_payload(exact_n, multimodal_n, nofm_n, b1_pct, b2_pct):
 PRE_GENERATED_PAYLOADS = []
 for _ in range(200):
     exact_n, multimodal_n, nofm_n = SELECTED_SIZE_PATTERN
-    b1_pct, b2_pct = SELECTED_BATCH_PATTERN
-    PRE_GENERATED_PAYLOADS.append(generate_payload(exact_n, multimodal_n, nofm_n, b1_pct, b2_pct))
+    b1_pct, b2_pct, b3_pct, b4_pct = SELECTED_BATCH_PATTERN
+
+    PRE_GENERATED_PAYLOADS.append(
+        generate_payload(
+            exact_n, multimodal_n, nofm_n,
+            b1_pct, b2_pct, b3_pct, b4_pct
+        )
+    )
 
 def get_payload():
     return random.choice(PRE_GENERATED_PAYLOADS)
@@ -119,8 +138,6 @@ def get_payload():
     
 class ReScoreService(FastHttpUser):
     host = "https://stage-search-reranker-api.aws.goshd.net"
-    # wait_time = constant(0.6)
-    run_time = 10
     
     @task
     def load_test(self):
