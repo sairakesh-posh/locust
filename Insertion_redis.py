@@ -9,7 +9,7 @@ BASE_URL = "https://stage-entity-score-api.aws.goshd.net/entity-scores/models/st
 
 BATCH_SIZE = 2000
 MAX_CONCURRENT_REQUESTS = 20
-SKIP_ROWS = 109000000 
+SKIP_ROWS = 0 
 
 HEADERS = {
     "Content-Type": "application/json"
