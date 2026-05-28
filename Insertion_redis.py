@@ -7,7 +7,7 @@ import time
 FILE_PATH = "/Users/sairakeshreddy/goshposh/locust/mock_scores.csv"
 BASE_URL = "https://stage-entity-score-api.aws.goshd.net/entity-scores/models/stage-listing-quality-score-model-2026-04-27T15-38"
 
-BATCH_SIZE = 2000
+BATCH_SIZE = 1000
 MAX_CONCURRENT_REQUESTS = 20
 SKIP_ROWS = 0 
 
